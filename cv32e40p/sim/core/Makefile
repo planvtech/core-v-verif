@@ -154,6 +154,9 @@ XRUN_DIR          = xcelium.d
 
 # verilator configuration
 VERILATOR           = verilator
+ifdef VERILATOR_ROOT
+VERILATOR := $(VERILATOR_ROOT)/bin/verilator
+endif
 VERI_FLAGS         +=
 VERI_COMPILE_FLAGS += -Wno-BLKANDNBLK $(SV_CMP_FLAGS) # hope this doesn't hurt us in the long run
 VERI_TRACE         ?=
@@ -354,11 +357,17 @@ vsim-all:  .opt-rtl
 	$(VOPT) -work $(VWORK) $(VOPT_FLAGS) $(RTLSRC_VLOG_TB_TOP) -o $(RTLSRC_VOPT_TB_TOP)
 	touch .opt-rtl
 
+questa-test: vsim-all $(TEST_PROGRAM_PATH)/$(TEST)/$(TEST).hex
+	$(eval ALL_VSIM_FLAGS += -c)
+	$(eval ALL_VSIM_FLAGS += +firmware=$(TEST_PROGRAM_RELPATH)/$(TEST)/$(TEST).hex)
+	$(VSIM) -work $(VWORK) $(DPILIB_VSIM_OPT) $(ALL_VSIM_FLAGS) \
+	$(RTLSRC_VOPT_TB_TOP) -do 'source $(VSIM_SCRIPT); exit -f'
+
 # run tb and exit
 .PHONY: vsim-run
 vsim-run: ALL_VSIM_FLAGS += -c
 vsim-run: vsim-all
-	$(VSIM) -work $(VWORK) $(DPILIB_VSIM_OPT) $(ALL_VSIM_FLAGS)\
+	$(VSIM) -work $(VWORK) $(DPILIB_VSIM_OPT) $(ALL_VSIM_FLAGS) \
 	$(RTLSRC_VOPT_TB_TOP) -do 'source $(VSIM_SCRIPT); exit -f'
 
 
@@ -490,13 +499,13 @@ testbench_verilator: CV_CORE_pkg $(TBSRC_VERI) $(TBSRC_PKG)
 	@echo "$(BANNER)"
 	$(VERILATOR) --cc --sv --exe \
 		$(VERI_TRACE) \
-		--Wno-lint --Wno-UNOPTFLAT \
+		--Wno-lint --Wno-UNOPTFLAT --Wno-COMBDLY --Wno-UNPACKED --Wno-MULTIDRIVEN \
 		--Wno-MODDUP --top-module \
 		tb_top_verilator $(TBSRC_VERI) \
 		-f $(CV_CORE_MANIFEST) \
 		$(CV_CORE_PKG)/bhv/$(CV_CORE_LC)_core_log.sv \
 		$(TBSRC_CORE)/tb_top_verilator.cpp --Mdir $(VERI_OBJ_DIR) \
-		-CFLAGS "-std=gnu++11 $(VERI_CFLAGS)" \
+		-CFLAGS "-std=gnu++20 $(VERI_CFLAGS)" \
 		$(VERI_COMPILE_FLAGS)
 	$(MAKE) -C $(VERI_OBJ_DIR) -f Vtb_top_verilator.mk
 	mkdir -p $(SIM_RESULTS)
